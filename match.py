@@ -29,6 +29,9 @@ class Match:
 
     def __init__(self, match_obj):
         self.info = {}
+        self.summonerIds = []
+        self.highestAchievedSeasonTiers = []
+
         if match_obj == None:
             self.isValid = False
         else:
@@ -72,6 +75,8 @@ class Match:
             participant['spell1Id'] = participant_obj['spell1Id']
             participant['spell2Id'] = participant_obj['spell2Id']
             participant['summonerId'] = participantIdentities[participant_obj['participantId']]['summonerId']
+            self.summonerIds.append(participant['summonerId'])
+            self.highestAchievedSeasonTiers.append(participant['highestAchievedSeasonTier'])
 
         return team1, team2
 
