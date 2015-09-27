@@ -19,7 +19,7 @@ def init():
 
     parser = argparse.ArgumentParser(description='Runner script for LoL-Game-Sampler')
     parser.add_argument('--reset_config', action='store_true', help='Reset defaults.cfg to defaults (removes your API key)')
-    parser.add_argument('--config_file', default='defaults.cfg', help='Specify which config file to use')
+    parser.add_argument('--config_file', default=join('config', 'defaults.cfg'), help='Specify which config file to use')
     args = parser.parse_args()
 
     # the reset config file flag was given, so we reset the config file and exit
@@ -65,12 +65,20 @@ def default_config():
 
     config.add_section('Other Constraints')
     config.set('Other Constraints', 'beginTime', 1441152000000)
+
+    config.add_section('Seed summoner IDs')
+    config.set('Seed summoner IDs', 38978082)
+    config.set('Seed summoner IDs', 19839634)
+    config.set('Seed summoner IDs', 37073409)
+    config.set('Seed summoner IDs', 25856104)
+    config.set('Seed summoner IDs', 37497048)
+
     with open('config/defaults.cfg', 'wt') as configfile:
         config.write(configfile)
 
 def gather_matches(seeds, api, config, batch_write = 50):
-    rankedQueues = ','.join([item for item in dict(config.items('rankedQueues'))])
-    seasons = ','.join([item for item in dict(config.items('seasons'))])
+    rankedQueues = ','.join([kv[0] for kv in config.items('rankedQueues')])
+    seasons = ','.join([kv[0] for kv in config.items('seasons')])
     beginTime = config.get('Other Constraints', 'beginTime')
     params = 'rankedQueues=' + rankedQueues + '&seasons=' + seasons + '&beginTime=' + beginTime
     # the frontier is a list of summonerIds
@@ -81,10 +89,6 @@ def gather_matches(seeds, api, config, batch_write = 50):
     matches_to_write = []
 
     # stats
-    valid_matches = 0
-    invalid_matches = 0
-    successful_matchlist_calls = 0
-    failed_matchlist_calls = 0
     summoners_processed = 0
     tier_distribution = {}
 
@@ -92,7 +96,7 @@ def gather_matches(seeds, api, config, batch_write = 50):
         new_frontier = []
         print('Frontier size: ' + str(len(frontier)))
         for summonerId in frontier:
-            logging.info('Valid matches: ' + str(valid_matches) + ' | Invalid matches: ' + str(invalid_matches))
+            logging.info('Valid calls: ' + str(api.valid_calls) + ' | Invalid calls: ' + str(api.invalid_calls))
             logging.info('Distribution: ' + str(tier_distribution))
             print('API calls made in past 10 mins: ' + str(len(api.call_timestamps_10_mins)))
             print('Summoners_processed: ' + str(summoners_processed))
@@ -108,9 +112,7 @@ def gather_matches(seeds, api, config, batch_write = 50):
             # batch write our matches to storage
             matchlist_obj = api.matchlist(summonerId, params)
             if matchlist_obj == None:
-                failed_matlist_calls += 1
                 continue
-            successful_matchlist_calls += 1
             if matchlist_obj['totalGames'] == 0:
                 continue
 
@@ -123,17 +125,14 @@ def gather_matches(seeds, api, config, batch_write = 50):
                 matchIds_list.append(match['matchId'])
 
             for matchId in matchIds_list:
-                print('Valid calls: ' + str(valid_matches) + ' | Invalid calls: ' + str(invalid_matches))
+                print('Valid calls: ' + str(api.valid_calls) + ' | Invalid calls: ' + str(api.invalid_calls))
                 if matchId in matches_explored:
                     continue
 
                 match = Match(api.match(matchId))
                 if not match.isValid:
-                    invalid_matches += 1
-                    print(match.to_json())
                     continue
 
-                valid_matches += 1
                 matches_explored.add(match.id)
                 matches_to_write.append(match)
                 for new_summonerId in match.summonerIds:
@@ -157,14 +156,7 @@ def write_to_file(data, filename):
 
 def main():
     args, config, api = init()
-    gather_matches(['38978082'], api, config)
-'''
-    match_obj = api.match('1778888152')
-    match = Match(match_obj)
-    print(match.to_json())
-    filename = join('data', config.get('Riot API', 'region'), str(datetime.date.today()) + '.data')
-    write_to_file(match.to_json() + "\n", filename)
-'''
-
+    seeds = [kv[0] for kv in config.items('Seed summoner IDs')]
+    gather_matches(seeds, api, config)
 
 main()
