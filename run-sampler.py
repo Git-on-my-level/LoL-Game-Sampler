@@ -22,13 +22,28 @@ def init():
     parser.add_argument('--config_file', default='defaults.cfg', help='Specify which config file to use')
     args = parser.parse_args()
 
+    # the reset config file flag was given, so we reset the config file and exit
+    if args.reset_config:
+        logging.info('Creating default config file')
+        default_config()
+        logging.info('Finished creating default config file, exiting')
+        exit()
+
     config = configparser.RawConfigParser(allow_no_value=True)
+    config.optionxform = str
     config.read(args.config_file)
 
-    return args, config
+    logging.info('Establishing API connection with:\n' +
+        '\t' + str(dict(config.items('Riot API'))))
+    api = RiotAPI(
+        config.get('Riot API', 'API key'),
+        config.get('Riot API', 'endpoint'),
+        config.get('Riot API', 'region'),
+        config.get('Riot API', 'version'))
+
+    return args, config, api
 
 def default_config():
-    logging.info('Creating default config file')
     config = configparser.RawConfigParser(allow_no_value=True)
     config.optionxform = str
     config.add_section('Riot API')
@@ -38,23 +53,31 @@ def default_config():
     config.set('Riot API', 'version', 'v2.2')
     config.set('Riot API', 'max requests per min', 50)
 
-    config.add_section('Parameters')
-    config.set('Parameters', 'include ranked solo', 1)
-    config.set('Parameters', 'include ranked 5s', 1)
-    config.set('Parameters', 'include ranked 4s', 0)
+    config.add_section('rankedQueues')
+    config.set('rankedQueues', 'RANKED_SOLO_5x5')
+    config.set('rankedQueues', 'RANKED_TEAM_5x5')
 
-    config.add_section('Seasons')
-    config.set('Seasons', 'SEASON2015')
+    config.add_section('seasons')
+    config.set('seasons', 'SEASON2015')
     with open('config/defaults.cfg', 'wt') as configfile:
         config.write(configfile)
 
-def gather_matches(seeds):
+
+def gather_matches(seeds, api, config):
+    rankedQueues = [item for item in dict(config.items('rankedQueues'))]
+    seasons = [item for item in dict(config.items('seasons'))]
+    print(seasons)
+    params = 'rankedQueues=' ','.join(rankedQueues) + '&seasons=' + ','.join(seasons)
+    print(params)
+    # the frontier is a list of summonerIds
     frontier = seeds
     explored = set()
-    for node in frontier:
+    for summonerId in frontier:
         new_frontier = []
-        if node not in explored:
-            pass
+        if summonerId in explored:
+            next
+        api.matchlist(summonerId, params)
+        
 
 def write_to_file(json, filename):
     logging.info('Writing data to "' + filename + '"')
@@ -63,18 +86,8 @@ def write_to_file(json, filename):
     f.close()
 
 def main():
-    args, config = init()
-    if args.reset_config:
-        default_config()
-        return
+    args, config, api = init()
 
-    logging.info('Establishing API connection with:\n' +
-        '\t' + str(dict(config.items('Riot API'))))
-    api = RiotAPI(
-        config.get('Riot API', 'API key'),
-        config.get('Riot API', 'endpoint'),
-        config.get('Riot API', 'region'),
-        config.get('Riot API', 'version'))
 
     match_obj = api.match('1778888152')
     match = Match(match_obj)
