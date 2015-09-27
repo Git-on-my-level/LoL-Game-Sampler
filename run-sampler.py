@@ -72,11 +72,14 @@ def default_config():
     config.set('Seed summoner IDs', 37073409)
     config.set('Seed summoner IDs', 25856104)
     config.set('Seed summoner IDs', 37497048)
+    config.set('Seed summoner IDs', 20132258) # Doublelift
+    config.set('Seed summoner IDs', 21397689)
+    config.set('Seed summoner IDs', 59411974)
 
     with open('config/defaults.cfg', 'wt') as configfile:
         config.write(configfile)
 
-def gather_matches(seeds, api, config, batch_write = 50):
+def gather_matches(seeds, api, config, max_matches_per_summoner = 5, batch_write = 50):
     rankedQueues = ','.join([kv[0] for kv in config.items('rankedQueues')])
     seasons = ','.join([kv[0] for kv in config.items('seasons')])
     beginTime = config.get('Other Constraints', 'beginTime')
@@ -90,17 +93,32 @@ def gather_matches(seeds, api, config, batch_write = 50):
 
     # stats
     summoners_processed = 0
+    degrees_of_separation = 0
     tier_distribution = {}
+    summoner_collisions = 0
+    summoner_uniques = 1
+    match_collisions = 0
+    match_uniques = 1
 
     while frontier:
         new_frontier = []
+        # logging for each degree of separation
         print('Frontier size: ' + str(len(frontier)))
+        logging.info('Frontier size: ' + str(len(frontier)))
+        logging.info('Degrees of separation: ' + str(degrees_of_separation))
+        logging.info('Valid calls: ' + str(api.valid_calls) + ' | Invalid calls: ' + str(api.invalid_calls))
+        logging.info('Distribution: ' + str(tier_distribution))
+        logging.info('Summoner collision rate on this frontier: ' + str(summoner_collisions/(summoner_collisions+summoner_uniques)))
+        logging.info('Match collision rate on this frontier: ' + str(match_collisions/(match_collisions+match_uniques)))
+        summoner_collisions = 0
+        summoner_uniques = 0
+        match_collisions = 0
+        match_uniques = 0
         for summonerId in frontier:
-            logging.info('Valid calls: ' + str(api.valid_calls) + ' | Invalid calls: ' + str(api.invalid_calls))
-            logging.info('Distribution: ' + str(tier_distribution))
             print('API calls made in past 10 mins: ' + str(len(api.call_timestamps_10_mins)))
             print('Summoners_processed: ' + str(summoners_processed))
             print('Distribution: ' + str(tier_distribution))
+            print('Valid calls: ' + str(api.valid_calls) + ' | Invalid calls: ' + str(api.invalid_calls))
             if len(matches_to_write) > batch_write:
                 res = ''
                 for match_to_write in matches_to_write:
@@ -119,15 +137,20 @@ def gather_matches(seeds, api, config, batch_write = 50):
             matchlist = matchlist_obj['matches']
             matchIds_list = []
 
+            matches_for_summoner = 0
             for match in matchlist:
+                if matches_for_summoner >= max_matches_per_summoner:
+                    break
                 if int(match['timestamp']) < int(beginTime):
                     continue
                 matchIds_list.append(match['matchId'])
+                matches_for_summoner += 1
 
             for matchId in matchIds_list:
-                print('Valid calls: ' + str(api.valid_calls) + ' | Invalid calls: ' + str(api.invalid_calls))
                 if matchId in matches_explored:
+                    match_collisions += 1
                     continue
+                match_uniques += 1
 
                 match = Match(api.match(matchId))
                 if not match.isValid:
@@ -137,7 +160,9 @@ def gather_matches(seeds, api, config, batch_write = 50):
                 matches_to_write.append(match)
                 for new_summonerId in match.summonerIds:
                     if new_summonerId in summoners_explored:
+                        summoner_collisions += 1
                         continue
+                    summoner_uniques += 1
                     new_frontier.append(new_summonerId)
                 for tier in match.highestAchievedSeasonTiers:
                     if tier not in tier_distribution:
@@ -148,6 +173,7 @@ def gather_matches(seeds, api, config, batch_write = 50):
             summoners_explored.add(summonerId)
             summoners_processed += 1
         frontier = new_frontier
+        degrees_of_separation += 1
 
 def write_to_file(data, filename):
     f = open(filename, 'a+')
