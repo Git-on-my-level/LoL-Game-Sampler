@@ -29,8 +29,11 @@ class Match:
 
     def __init__(self, match_obj):
         self.info = {}
-
-        self.parse_match(match_obj)
+        if match_obj == None:
+            self.isValid = False
+        else:
+            self.isValid = True
+            self.parse_match(match_obj)
 
     def extract_participant_ids(self, participantIdentities_list):
         participants_by_id  = {}
@@ -39,6 +42,7 @@ class Match:
         return participants_by_id
 
     def parse_match(self, match_obj):
+        self.id = match_obj['matchId']
         self.info['matchId'] = match_obj['matchId']
         self.info['region'] = match_obj['region']
         self.info['matchCreation'] = match_obj['matchCreation']

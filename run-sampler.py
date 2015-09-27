@@ -39,7 +39,8 @@ def init():
         config.get('Riot API', 'API key'),
         config.get('Riot API', 'endpoint'),
         config.get('Riot API', 'region'),
-        config.get('Riot API', 'version'))
+        config.get('Riot API', 'version'),
+        config.getint('Riot API', 'max requests per min'))
 
     return args, config, api
 
@@ -59,25 +60,57 @@ def default_config():
 
     config.add_section('seasons')
     config.set('seasons', 'SEASON2015')
+
+    config.add_section('Other Constraints')
+    config.set('Other Constraints', 'beginTime', 1441152000000)
     with open('config/defaults.cfg', 'wt') as configfile:
         config.write(configfile)
 
 
-def gather_matches(seeds, api, config):
-    rankedQueues = [item for item in dict(config.items('rankedQueues'))]
-    seasons = [item for item in dict(config.items('seasons'))]
-    print(seasons)
-    params = 'rankedQueues=' ','.join(rankedQueues) + '&seasons=' + ','.join(seasons)
-    print(params)
+def gather_matches(seeds, api, config, batch_write = 50):
+    rankedQueues = ','.join([item for item in dict(config.items('rankedQueues'))])
+    seasons = ','.join([item for item in dict(config.items('seasons'))])
+    beginTime = config.get('Other Constraints', 'beginTime')
+    params = 'rankedQueues=' + rankedQueues + '&seasons=' + seasons + '&beginTime=' + beginTime
     # the frontier is a list of summonerIds
     frontier = seeds
-    explored = set()
+    matches_explored = set()
+    summoners_explored = set()
+    # temporary storage for matches
+    matches_to_write = []
+
+    # stats
+    valid_matches = 0
+    invalid_matches = 0
+
     for summonerId in frontier:
         new_frontier = []
+        # batch write our matches to storage
+        if len(matches_to_write) > batch_write:
+            res = ''
+            for match_to_write in matches_to_write:
+                res += match_to_write.to_json() + "\n"
+            write_to_file(res)
+            matches_to_write = []
         if summonerId in explored:
             next
-        api.matchlist(summonerId, params)
-        
+        matchlist = api.matchlist(summonerId, params)['matches']
+        matchIds_list = []
+        for match in matchlist:
+            if int(match['timestamp']) < int(beginTime):
+                next
+            matchIds_list.append(match['matchId'])
+        for matchId in matchIds_list:
+            match = Match(api.match(matchId))
+            if not match.isValid:
+                invalid_matches += 1
+                next
+            valid_matches += 1
+            matches_explored.add(match.id)
+            matches_to_write.append(match)
+
+
+
 
 def write_to_file(json, filename):
     logging.info('Writing data to "' + filename + '"')
