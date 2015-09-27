@@ -35,6 +35,14 @@ def default_config():
     with open('defaults.cfg', 'wt') as configfile:
         config.write(configfile)
 
+def gather_matches(seeds):
+    frontier = seeds
+    explored = set()
+    for node in frontier:
+        new_frontier = []
+        if node not in explored:
+
+
 def main():
     args, config = init()
     if args.reset_config:
@@ -46,7 +54,8 @@ def main():
         config.get('Riot API', 'endpoint'),
         config.get('Riot API', 'region'),
         config.get('Riot API', 'version'))
-    print(api.match('1778888152'))
+
+    match_obj = api.match('1778888152')['queueType']
 
 
 main()

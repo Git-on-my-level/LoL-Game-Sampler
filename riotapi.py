@@ -1,4 +1,5 @@
 import urllib.request
+import json
 from os.path import join
 
 class RiotAPI:
@@ -12,4 +13,4 @@ class RiotAPI:
     def match(self, match_id):
         opt_params = '?'
         url = join(self.endpoint, self.region, self.version, 'match', match_id, opt_params + 'api_key=' + self.api_key)
-        return urllib.request.urlopen(url).read()
+        return json.loads(urllib.request.urlopen(url).read().decode('utf-8'))
